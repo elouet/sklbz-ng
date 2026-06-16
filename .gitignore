@@ -1,0 +1,33 @@
+# Go
+/bin/
+/pkg/
+*.exe
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (ignore generated JSON files)
+data/*.json
+
+# Static files - keep example files, ignore build artifacts
+static/js/*.min.js
+static/css/*.min.css
+static/js/*.bundle.js
+static/css/*.bundle.css
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
