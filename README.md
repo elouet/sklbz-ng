@@ -68,6 +68,9 @@ go build -o sklbz-ng
 # Avec des paramètres personnalisés
 ./sklbz-ng -port 3000 -db ./my-database.db -static ./my-static
 
+# Avec mTLS activé
+./sklbz-ng -mtls -cert certs/server.crt -key certs/server.key -ca-cert certs/ca.crt
+
 # Utiliser le Makefile
 make run
 ```
@@ -79,6 +82,11 @@ make run
 | `-port` | Port du serveur | `8080` |
 | `-db` | Chemin vers la base de données SQLite | `./sklbz.db` |
 | `-static` | Répertoire des fichiers statiques | `./static` |
+| `-templates` | Répertoire des templates HTML | `./templates` |
+| `-mtls` | Activer l'authentification mutuelle TLS | `false` |
+| `-cert` | Chemin vers le certificat serveur (PEM) | `""` |
+| `-key` | Chemin vers la clé privée serveur (PEM) | `""` |
+| `-ca-cert` | Chemin vers le certificat CA pour la vérification client (PEM) | `""` |
 
 ## API Endpoints
 
@@ -248,6 +256,67 @@ curl -X PUT http://localhost:8080/api/articles/1 \
 ```bash
 curl -X DELETE http://localhost:8080/api/articles/1
 ```
+
+## Sécurité avec mTLS
+
+### Authentification mutuelle TLS
+
+Le serveur supporte l'authentification mutuelle TLS (mTLS) pour sécuriser les opérations d'écriture (POST, PUT, DELETE) sur l'API des articles.
+
+**Fonctionnement :**
+- Les requêtes **GET** sont accessibles sans authentification
+- Les requêtes **POST, PUT, DELETE** nécessitent un certificat client valide
+- Le certificat client doit être signé par une autorité de certification (CA) de confiance
+
+### Génération des certificats
+
+Un script est fourni pour générer des certificats de test :
+
+```bash
+# Générer les certificats
+./scripts/generate_certs.sh
+
+# Cela crée un répertoire 'certs/' avec :
+# - ca.crt, ca.key (Autorité de certification)
+# - server.crt, server.key (Certificat serveur)
+# - client.crt, client.key (Certificat client)
+# - client-combined.pem (Client cert + key pour curl)
+```
+
+### Démarrer le serveur avec mTLS
+
+```bash
+./sklbz-ng -mtls -cert certs/server.crt -key certs/server.key -ca-cert certs/ca.crt
+```
+
+### Tester avec curl
+
+```bash
+# Requête GET - pas besoin de certificat
+curl http://localhost:8080/api/articles
+
+# Requête POST - nécessite un certificat client
+curl -X POST https://localhost:8080/api/articles \
+  --cert certs/client-combined.pem \
+  --cacert certs/ca.crt \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test mTLS", "content": "Contenu test", "author": "Test"}'
+```
+
+### Configuration via variables d'environnement
+
+```bash
+# Activer mTLS via variable d'environnement
+export MTLS_ENABLED=true
+./sklbz-ng -cert certs/server.crt -key certs/server.key -ca-cert certs/ca.crt
+```
+
+### Sécurité
+
+- **TLS 1.2 minimum** : Le serveur nécessite au moins TLS 1.2
+- **Cipher suites sécurisées** : Seules les cipher suites modernes sont autorisées
+- **Vérification du certificat** : Le certificat client doit être valide et non expiré
+- **Journalisation** : Les requêtes authentifiées sont journalisées avec le CN du certificat
 
 ## Développement
 

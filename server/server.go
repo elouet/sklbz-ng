@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -9,16 +10,21 @@ import (
 	"github.com/gorilla/mux"
 	"sklbz-ng/config"
 	"sklbz-ng/handlers"
+	"sklbz-ng/middleware"
 	"sklbz-ng/models"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	router     *mux.Router
-	repo       *models.ArticleRepository
-	port       string
-	staticDir  string
+	router      *mux.Router
+	repo        *models.ArticleRepository
+	port        string
+	staticDir   string
 	templateDir string
+	mtlsConfig  *config.MTLSConfig
+	useHTTPS    bool
+	certFile    string
+	keyFile     string
 }
 
 // NewServer creates a new Server instance
@@ -35,18 +41,45 @@ func NewServer(port, dbPath, staticDir, templateDir string) *Server {
 	}
 	
 	return &Server{
-		router:     router,
-		repo:       repo,
-		port:       port,
-		staticDir:  staticDir,
+		router:      router,
+		repo:        repo,
+		port:        port,
+		staticDir:   staticDir,
 		templateDir: templateDir,
+		mtlsConfig:  config.DefaultMTLSConfig(),
+		useHTTPS:    false,
 	}
+}
+
+// NewMTLSServer creates a new Server instance with mTLS support
+func NewMTLSServer(port, dbPath, staticDir, templateDir, certFile, keyFile, caCertFile string) *Server {
+	server := NewServer(port, dbPath, staticDir, templateDir)
+	
+	// Load mTLS configuration
+	mtlsConfig, err := config.LoadMTLSConfig(certFile, keyFile, caCertFile)
+	if err != nil {
+		log.Printf("Warning: Failed to load mTLS config: %v", err)
+		mtlsConfig = config.DefaultMTLSConfig()
+	}
+	
+	server.mtlsConfig = mtlsConfig
+	server.useHTTPS = mtlsConfig.Enabled
+	server.certFile = certFile
+	server.keyFile = keyFile
+	
+	return server
 }
 
 // SetupRoutes configures all server routes
 func (s *Server) SetupRoutes() {
-	// API routes for articles
-	handlers.RegisterArticleRoutes(s.router, s.repo)
+	// Apply mTLS middleware to all routes
+	// This middleware will check for client certificates on write operations
+	writeAuthMiddleware := middleware.WriteOnlyAuth(s.mtlsConfig)
+	
+	// API routes for articles - with write authentication
+	apiRouter := s.router.PathPrefix("/api").Subrouter()
+	apiRouter.Use(writeAuthMiddleware)
+	handlers.RegisterArticleRoutes(apiRouter, s.repo)
 
 	// HTML routes for articles
 	handlers.RegisterHTMLRoutes(s.router, s.repo, s.templateDir)
@@ -85,9 +118,32 @@ func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Start() error {
 	s.SetupRoutes()
 	
-	log.Printf("Starting server on port %s", s.port)
+	if s.useHTTPS {
+		log.Printf("Starting HTTPS server on port %s with mTLS", s.port)
+		log.Printf("Database: SQLite (GORM)")
+		log.Printf("Static files directory: %s", s.staticDir)
+		log.Printf("Templates directory: %s", s.templateDir)
+		log.Printf("Server certificate: %s", s.certFile)
+		log.Printf("Server key: %s", s.keyFile)
+		
+		// Create HTTPS server with mTLS
+		server, err := config.CreateMTLSListener(":"+s.port, s.certFile, s.keyFile, s.mtlsConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTPS server: %v", err)
+		}
+		
+		server.Handler = s.router
+		
+		return server.ListenAndServeTLS("", "")
+	}
+	
+	log.Printf("Starting HTTP server on port %s", s.port)
 	log.Printf("Database: SQLite (GORM)")
 	log.Printf("Static files directory: %s", s.staticDir)
+	log.Printf("Templates directory: %s", s.templateDir)
+	if s.mtlsConfig.Enabled {
+		log.Printf("Warning: mTLS is configured but server is running in HTTP mode. Use HTTPS for mTLS to work properly.")
+	}
 	
 	return http.ListenAndServe(":"+s.port, s.router)
 }

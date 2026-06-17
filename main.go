@@ -16,6 +16,12 @@ func main() {
 	dbPath := flag.String("db", "./sklbz.db", "Path to SQLite database file")
 	staticDir := flag.String("static", "./static", "Directory to serve static files from")
 	templateDir := flag.String("templates", "./templates", "Directory containing HTML templates")
+	
+	// mTLS flags
+	mtlsEnabled := flag.Bool("mtls", false, "Enable mutual TLS authentication")
+	certFile := flag.String("cert", "", "Path to server certificate file (PEM)")
+	keyFile := flag.String("key", "", "Path to server private key file (PEM)")
+	caCertFile := flag.String("ca-cert", "", "Path to CA certificate file for client verification (PEM)")
 
 	flag.Parse()
 
@@ -27,8 +33,35 @@ func main() {
 		log.Fatalf("Failed to create templates directory: %v", err)
 	}
 
-	// Create and start server
-	s := server.NewServer(*port, *dbPath, *staticDir, *templateDir)
+	var s *server.Server
+	
+	// Check if mTLS is enabled via flag or environment variable
+	if *mtlsEnabled || os.Getenv("MTLS_ENABLED") == "true" {
+		// Verify required files exist
+		if *certFile == "" || *keyFile == "" || *caCertFile == "" {
+			log.Fatal("mTLS enabled but missing required certificate files. Please provide -cert, -key, and -ca-cert flags.")
+		}
+		
+		// Check if files exist
+		if _, err := os.Stat(*certFile); os.IsNotExist(err) {
+			log.Fatalf("Server certificate file not found: %s", *certFile)
+		}
+		if _, err := os.Stat(*keyFile); os.IsNotExist(err) {
+			log.Fatalf("Server key file not found: %s", *keyFile)
+		}
+		if _, err := os.Stat(*caCertFile); os.IsNotExist(err) {
+			log.Fatalf("CA certificate file not found: %s", *caCertFile)
+		}
+		
+		log.Printf("mTLS authentication enabled")
+		log.Printf("Server certificate: %s", *certFile)
+		log.Printf("Server key: %s", *keyFile)
+		log.Printf("CA certificate: %s", *caCertFile)
+		
+		s = server.NewMTLSServer(*port, *dbPath, *staticDir, *templateDir, *certFile, *keyFile, *caCertFile)
+	} else {
+		s = server.NewServer(*port, *dbPath, *staticDir, *templateDir)
+	}
 	
 	log.Printf("Server starting on port %s", *port)
 	log.Printf("Database: %s", *dbPath)
