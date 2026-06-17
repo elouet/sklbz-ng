@@ -7,27 +7,36 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"sklbz-ng/config"
 	"sklbz-ng/handlers"
 	"sklbz-ng/models"
 )
 
 // Server represents the HTTP server
 type Server struct {
-	router   *mux.Router
-	storage  *models.ArticleStorage
-	port     string
+	router    *mux.Router
+	repo      *models.ArticleRepository
+	port      string
 	staticDir string
 }
 
 // NewServer creates a new Server instance
-func NewServer(port, dataDir, staticDir string) *Server {
+func NewServer(port, dbPath, staticDir string) *Server {
 	router := mux.NewRouter()
-	storage := models.NewArticleStorage(dataDir)
+	
+	// Initialize database
+	db := config.InitDB(dbPath)
+	
+	// Auto-migrate database
+	repo := models.NewArticleRepository(db)
+	if err := repo.AutoMigrate(); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
+	}
 	
 	return &Server{
-		router:   router,
-		storage:  storage,
-		port:     port,
+		router:    router,
+		repo:      repo,
+		port:      port,
 		staticDir: staticDir,
 	}
 }
@@ -35,7 +44,7 @@ func NewServer(port, dataDir, staticDir string) *Server {
 // SetupRoutes configures all server routes
 func (s *Server) SetupRoutes() {
 	// API routes for articles
-	handlers.RegisterArticleRoutes(s.router, s.storage)
+	handlers.RegisterArticleRoutes(s.router, s.repo)
 
 	// Static file routes
 	// Serve JavaScript files
@@ -67,7 +76,7 @@ func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 func (s *Server) rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message": "Welcome to sklbz-ng API", "endpoints": {"articles": "/api/articles", "static": "/static/"}}`))
+	w.Write([]byte(`{"message": "Welcome to sklbz-ng API with GORM", "endpoints": {"articles": "/api/articles", "static": "/static/"}}`))
 }
 
 // Start starts the HTTP server
@@ -75,7 +84,7 @@ func (s *Server) Start() error {
 	s.SetupRoutes()
 	
 	log.Printf("Starting server on port %s", s.port)
-	log.Printf("Data directory: %s", s.storage.BasePath)
+	log.Printf("Database: SQLite (GORM)")
 	log.Printf("Static files directory: %s", s.staticDir)
 	
 	return http.ListenAndServe(":"+s.port, s.router)
@@ -84,4 +93,9 @@ func (s *Server) Start() error {
 // GetRouter returns the router for testing purposes
 func (s *Server) GetRouter() *mux.Router {
 	return s.router
+}
+
+// Close closes the database connection
+func (s *Server) Close() {
+	config.CloseDB()
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -13,12 +14,12 @@ import (
 
 // ArticleHandler manages article-related HTTP handlers
 type ArticleHandler struct {
-	storage *models.ArticleStorage
+	repo *models.ArticleRepository
 }
 
 // NewArticleHandler creates a new ArticleHandler
-func NewArticleHandler(storage *models.ArticleStorage) *ArticleHandler {
-	return &ArticleHandler{storage: storage}
+func NewArticleHandler(repo *models.ArticleRepository) *ArticleHandler {
+	return &ArticleHandler{repo: repo}
 }
 
 // CreateArticle creates a new article
@@ -40,12 +41,8 @@ func (h *ArticleHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 		req.Visibility = models.VisibilityPublic
 	}
 
-	// Generate ID (using timestamp for simplicity)
-	id := fmt.Sprintf("article-%d", time.Now().UnixNano())
-
 	// Create article
 	article := &models.Article{
-		ID:         id,
 		Title:      req.Title,
 		Content:    req.Content,
 		Author:     req.Author,
@@ -53,12 +50,10 @@ func (h *ArticleHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 		Visibility: req.Visibility,
 		Categories: req.Categories,
 		Tags:       req.Tags,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
 	}
 
-	// Save to storage
-	if err := h.storage.Save(article); err != nil {
+	// Save to database
+	if err := h.repo.Create(article); err != nil {
 		log.Printf("Error saving article: %v", err)
 		http.Error(w, fmt.Sprintf("Error saving article: %v", err), http.StatusInternalServerError)
 		return
@@ -73,9 +68,23 @@ func (h *ArticleHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 // GetArticle retrieves an article by ID
 func (h *ArticleHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id := vars["id"]
+	idStr := vars["id"]
 
-	article, err := h.storage.Get(id)
+	// Try to parse as uint first
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		// Try string ID for backward compatibility
+		article, err := h.repo.GetByStringID(idStr)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Article not found: %v", err), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(article.ToResponse())
+		return
+	}
+
+	article, err := h.repo.Get(uint(id))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Article not found: %v", err), http.StatusNotFound)
 		return
@@ -88,13 +97,18 @@ func (h *ArticleHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
 // UpdateArticle updates an existing article
 func (h *ArticleHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id := vars["id"]
+	idStr := vars["id"]
 
-	// Get existing article
-	article, err := h.storage.Get(id)
+	// Try to parse as uint first
+	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Article not found: %v", err), http.StatusNotFound)
-		return
+		// Try string ID for backward compatibility
+		article, err := h.repo.GetByStringID(idStr)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Article not found: %v", err), http.StatusNotFound)
+			return
+		}
+		id = uint(article.ID)
 	}
 
 	// Decode update request
@@ -104,30 +118,31 @@ func (h *ArticleHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update fields
+	// Build updates map
+	updates := make(map[string]interface{})
 	if req.Title != "" {
-		article.Title = req.Title
+		updates["title"] = req.Title
 	}
 	if req.Content != "" {
-		article.Content = req.Content
+		updates["content"] = req.Content
 	}
 	if req.Author != "" {
-		article.Author = req.Author
+		updates["author"] = req.Author
 	}
 	if req.Visibility != "" {
-		article.Visibility = req.Visibility
+		updates["visibility"] = req.Visibility
 	}
 	if req.Categories != nil {
-		article.Categories = req.Categories
+		updates["categories"] = req.Categories
 	}
 	if req.Tags != nil {
-		article.Tags = req.Tags
+		updates["tags"] = req.Tags
 	}
+	updates["updated_at"] = time.Now()
 
-	article.UpdatedAt = time.Now()
-
-	// Save updated article
-	if err := h.storage.Save(article); err != nil {
+	// Update article
+	article, err := h.repo.Update(id, updates)
+	if err != nil {
 		log.Printf("Error updating article: %v", err)
 		http.Error(w, fmt.Sprintf("Error updating article: %v", err), http.StatusInternalServerError)
 		return
@@ -140,9 +155,22 @@ func (h *ArticleHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 // DeleteArticle deletes an article by ID
 func (h *ArticleHandler) DeleteArticle(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id := vars["id"]
+	idStr := vars["id"]
 
-	if err := h.storage.Delete(id); err != nil {
+	// Try to parse as uint first
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		// Try string ID for backward compatibility
+		err := h.repo.DeleteByStringID(idStr)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error deleting article: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if err := h.repo.Delete(uint(id)); err != nil {
 		http.Error(w, fmt.Sprintf("Error deleting article: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -154,65 +182,39 @@ func (h *ArticleHandler) DeleteArticle(w http.ResponseWriter, r *http.Request) {
 func (h *ArticleHandler) ListArticles(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters for filtering
 	query := r.URL.Query()
-	author := query.Get("author")
-	category := query.Get("category")
-	tag := query.Get("tag")
-	visibility := query.Get("visibility")
+	filters := make(map[string]interface{})
+	
+	if author := query.Get("author"); author != "" {
+		filters["author"] = author
+	}
+	if category := query.Get("category"); category != "" {
+		filters["category"] = category
+	}
+	if tag := query.Get("tag"); tag != "" {
+		filters["tag"] = tag
+	}
+	if visibility := query.Get("visibility"); visibility != "" {
+		filters["visibility"] = visibility
+	}
 
-	articles, err := h.storage.ListAll()
+	var articles []*models.Article
+	var err error
+	
+	if len(filters) > 0 {
+		articles, err = h.repo.List(filters)
+	} else {
+		articles, err = h.repo.ListAll()
+	}
+	
 	if err != nil {
 		log.Printf("Error listing articles: %v", err)
 		http.Error(w, fmt.Sprintf("Error listing articles: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Apply filters
-	var filtered []*models.Article
-	for _, article := range articles {
-		// Filter by author
-		if author != "" && article.Author != author {
-			continue
-		}
-
-		// Filter by category
-		if category != "" {
-			found := false
-			for _, cat := range article.Categories {
-				if cat == category {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		// Filter by tag
-		if tag != "" {
-			found := false
-			for _, t := range article.Tags {
-				if t == tag {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		// Filter by visibility
-		if visibility != "" && article.Visibility != models.Visibility(visibility) {
-			continue
-		}
-
-		filtered = append(filtered, article)
-	}
-
 	// Convert to responses
 	var responses []*models.ArticleResponse
-	for _, article := range filtered {
+	for _, article := range articles {
 		responses = append(responses, article.ToResponse())
 	}
 
@@ -221,8 +223,8 @@ func (h *ArticleHandler) ListArticles(w http.ResponseWriter, r *http.Request) {
 }
 
 // RegisterArticleRoutes registers article routes on the router
-func RegisterArticleRoutes(router *mux.Router, storage *models.ArticleStorage) {
-	handler := NewArticleHandler(storage)
+func RegisterArticleRoutes(router *mux.Router, repo *models.ArticleRepository) {
+	handler := NewArticleHandler(repo)
 
 	router.HandleFunc("/api/articles", handler.CreateArticle).Methods("POST")
 	router.HandleFunc("/api/articles", handler.ListArticles).Methods("GET")
