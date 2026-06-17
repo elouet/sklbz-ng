@@ -75,7 +75,7 @@ func (s *Server) Start() error {
 	s.SetupRoutes()
 	
 	log.Printf("Starting server on port %s", s.port)
-	log.Printf("Data directory: %s", s.storage.basePath)
+	log.Printf("Data directory: %s", s.storage.BasePath)
 	log.Printf("Static files directory: %s", s.staticDir)
 	
 	return http.ListenAndServe(":"+s.port, s.router)
