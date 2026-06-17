@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 // MTLSConfig holds the mTLS configuration
@@ -95,7 +96,21 @@ func MTLSMiddleware(config *MTLSConfig) func(http.Handler) http.Handler {
 			}
 
 			// Check if certificate is expired
-			if cert.NotAfter.Before(r.Header.Get("Date")) {
+			// Parse the Date header, default to current time if not present
+			dateHeader := r.Header.Get("Date")
+			var requestTime time.Time
+			if dateHeader != "" {
+				var err error
+				requestTime, err = http.ParseTime(dateHeader)
+				if err != nil {
+					log.Printf("Error parsing Date header: %v", err)
+					requestTime = time.Now()
+				}
+			} else {
+				requestTime = time.Now()
+			}
+			
+			if cert.NotAfter.Before(requestTime) {
 				http.Error(w, "Client certificate expired", http.StatusUnauthorized)
 				return
 			}
