@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accueil - sklbz-ng</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bienvenue sur sklbz-ng</h1>
+            <nav>
+                <a href="/">Accueil</a> |
+                <a href="/articles">Articles</a> |
+                <a href="/health">Health</a>
+            </nav>
+        </header>
+        
+        <main>
+            <section class="welcome">
+                <h2>Serveur Go avec GORM et SQLite</h2>
+                <p>Ce serveur permet de gérer des articles dynamiquement et de servir des fichiers statiques.</p>
+                
+                <div class="features">
+                    <h3>Fonctionnalités</h3>
+                    <ul>
+                        <li>✅ Gestion d'articles via API REST</li>
+                        <li>✅ Stockage dans une base de données SQLite avec GORM</li>
+                        <li>✅ Service de fichiers statiques (JS, CSS)</li>
+                        <li>✅ Filtrage des articles par auteur, catégorie, tag</li>
+                        <li>✅ Rendu HTML des articles</li>
+                    </ul>
+                </div>
+                
+                <div class="api-info">
+                    <h3>API Endpoints</h3>
+                    <table>
+                        <tr>
+                            <th>Méthode</th>
+                            <th>Endpoint</th>
+                            <th>Description</th>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td>/api/articles</td>
+                            <td>Lister tous les articles (JSON)</td>
+                        </tr>
+                        <tr>
+                            <td>POST</td>
+                            <td>/api/articles</td>
+                            <td>Créer un nouvel article</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td>/api/articles/{id}</td>
+                            <td>Récupérer un article (JSON)</td>
+                        </tr>
+                        <tr>
+                            <td>PUT</td>
+                            <td>/api/articles/{id}</td>
+                            <td>Mettre à jour un article</td>
+                        </tr>
+                        <tr>
+                            <td>DELETE</td>
+                            <td>/api/articles/{id}</td>
+                            <td>Supprimer un article</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td>/articles</td>
+                            <td>Lister tous les articles (HTML)</td>
+                        </tr>
+                        <tr>
+                            <td>GET</td>
+                            <td>/articles/{id}</td>
+                            <td>Afficher un article (HTML)</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div class="quick-start">
+                    <h3>Test rapide</h3>
+                    <p>Essayez de créer un article :</p>
+                    <pre>curl -X POST http://localhost:8080/api/articles \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test", "content": "Contenu test", "author": "Test"}'</pre>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>sklbz-ng - Serveur Go avec GORM et SQLite</p>
+        </footer>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

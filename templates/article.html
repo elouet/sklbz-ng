@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - sklbz-ng</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{.Title}}</h1>
+            <nav>
+                <a href="/">Accueil</a> |
+                <a href="/articles">Tous les articles</a> |
+                <a href="/health">Health</a>
+            </nav>
+        </header>
+        
+        <main>
+            <article class="article single-article">
+                <div class="meta">
+                    <span class="author">Par: {{.Author}}</span> |
+                    <span class="date">Le: {{.Date.Format "2006-01-02 15:04:05"}}</span> |
+                    <span class="visibility">Visibilité: {{.Visibility}}</span>
+                </div>
+                
+                <div class="content">
+                    {{.Content}}
+                </div>
+                
+                {{if .Categories}}
+                <div class="categories">
+                    <strong>Catégories:</strong>
+                    {{range .Categories}}
+                        <span class="category">{{.}}</span>
+                    {{end}}
+                </div>
+                {{end}}
+                
+                {{if .Tags}}
+                <div class="tags">
+                    <strong>Tags:</strong>
+                    {{range .Tags}}
+                        <span class="tag">{{.}}</span>
+                    {{end}}
+                </div>
+                {{end}}
+                
+                <div class="article-footer">
+                    <small>Créé: {{.CreatedAt.Format "2006-01-02 15:04:05"}} | Modifié: {{.UpdatedAt.Format "2006-01-02 15:04:05"}}</small>
+                </div>
+                
+                <div class="actions">
+                    <a href="/articles" class="back-link">← Retour à la liste</a>
+                </div>
+            </article>
+        </main>
+        
+        <footer>
+            <p>sklbz-ng - Serveur Go avec GORM et SQLite</p>
+        </footer>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -14,14 +14,15 @@ import (
 
 // Server represents the HTTP server
 type Server struct {
-	router    *mux.Router
-	repo      *models.ArticleRepository
-	port      string
-	staticDir string
+	router     *mux.Router
+	repo       *models.ArticleRepository
+	port       string
+	staticDir  string
+	templateDir string
 }
 
 // NewServer creates a new Server instance
-func NewServer(port, dbPath, staticDir string) *Server {
+func NewServer(port, dbPath, staticDir, templateDir string) *Server {
 	router := mux.NewRouter()
 	
 	// Initialize database
@@ -34,10 +35,11 @@ func NewServer(port, dbPath, staticDir string) *Server {
 	}
 	
 	return &Server{
-		router:    router,
-		repo:      repo,
-		port:      port,
-		staticDir: staticDir,
+		router:     router,
+		repo:       repo,
+		port:       port,
+		staticDir:  staticDir,
+		templateDir: templateDir,
 	}
 }
 
@@ -45,6 +47,9 @@ func NewServer(port, dbPath, staticDir string) *Server {
 func (s *Server) SetupRoutes() {
 	// API routes for articles
 	handlers.RegisterArticleRoutes(s.router, s.repo)
+
+	// HTML routes for articles
+	handlers.RegisterHTMLRoutes(s.router, s.repo, s.templateDir)
 
 	// Static file routes
 	// Serve JavaScript files
@@ -60,9 +65,6 @@ func (s *Server) SetupRoutes() {
 
 	// Health check endpoint
 	s.router.HandleFunc("/health", s.healthCheck).Methods("GET")
-
-	// Root endpoint
-	s.router.HandleFunc("/", s.rootHandler).Methods("GET")
 }
 
 // healthCheck returns server health status
