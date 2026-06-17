@@ -57,17 +57,17 @@ type ArticleResponse struct {
 
 // ArticleStorage handles JSON file storage for articles
 type ArticleStorage struct {
-	basePath string
+	BasePath string
 }
 
 // NewArticleStorage creates a new ArticleStorage instance
 func NewArticleStorage(basePath string) *ArticleStorage {
-	return &ArticleStorage{basePath: basePath}
+	return &ArticleStorage{BasePath: basePath}
 }
 
 // ensureDirectory ensures the storage directory exists
 func (s *ArticleStorage) ensureDirectory() error {
-	if err := os.MkdirAll(s.basePath, 0755); err != nil {
+	if err := os.MkdirAll(s.BasePath, 0755); err != nil {
 		return err
 	}
 	return nil
@@ -75,7 +75,7 @@ func (s *ArticleStorage) ensureDirectory() error {
 
 // getFilePath returns the full path for an article JSON file
 func (s *ArticleStorage) getFilePath(id string) string {
-	return filepath.Join(s.basePath, id+".json")
+	return filepath.Join(s.BasePath, id+".json")
 }
 
 // Save saves an article to disk as JSON
