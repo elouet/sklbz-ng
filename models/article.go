@@ -126,7 +126,7 @@ func (s *ArticleStorage) Delete(id string) error {
 
 // List returns all article IDs
 func (s *ArticleStorage) List() ([]string, error) {
-	files, err := os.ReadDir(s.basePath)
+	files, err := os.ReadDir(s.BasePath)
 	if err != nil {
 		return nil, err
 	}
