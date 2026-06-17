@@ -108,7 +108,7 @@ func (h *ArticleHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Article not found: %v", err), http.StatusNotFound)
 			return
 		}
-		id = uint(article.ID)
+		id = uint64(article.ID)
 	}
 
 	// Decode update request
@@ -141,7 +141,7 @@ func (h *ArticleHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	updates["updated_at"] = time.Now()
 
 	// Update article
-	article, err := h.repo.Update(id, updates)
+	article, err := h.repo.Update(uint(id), updates)
 	if err != nil {
 		log.Printf("Error updating article: %v", err)
 		http.Error(w, fmt.Sprintf("Error updating article: %v", err), http.StatusInternalServerError)
